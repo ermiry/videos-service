@@ -13,6 +13,8 @@
 HttpResponse *videos_works = NULL;
 HttpResponse *current_version = NULL;
 
+HttpResponse *missing_values = NULL;
+
 HttpResponse *catch_all = NULL;
 
 unsigned int videos_service_init (void) {
@@ -34,12 +36,17 @@ unsigned int videos_service_init (void) {
 		HTTP_STATUS_OK, "version", version
 	);
 
+	missing_values = http_response_json_error (
+		HTTP_STATUS_BAD_REQUEST, "Missing values!"
+	);
+
 	catch_all = http_response_json_key_value (
 		HTTP_STATUS_OK, "msg", "Videos service service!"
 	);
 
 	if (
 		videos_works && current_version
+		&& missing_values
 		&& catch_all
 	) retval = 0;
 
@@ -51,6 +58,8 @@ void videos_service_end (void) {
 
 	http_response_delete (videos_works);
 	http_response_delete (current_version);
+
+	http_response_delete (missing_values);
 
 	http_response_delete (catch_all);
 
