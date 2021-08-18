@@ -14,6 +14,7 @@
 #include <cerver/utils/log.h>
 #include <cerver/utils/utils.h>
 
+#include "files.h"
 #include "videos.h"
 #include "version.h"
 
@@ -90,7 +91,10 @@ static void start (void) {
 
 		http_cerver_set_uploads_path (http_cerver, VIDEOS_UPLOAD_PATH);
 		// http_cerver_set_uploads_delete_when_done (http_cerver, true);
-		http_cerver_set_default_uploads_filename_generator (http_cerver);
+		// http_cerver_set_default_uploads_filename_generator (http_cerver);
+		http_cerver_set_uploads_filename_generator (
+			http_cerver, videos_uploads_filename_generator
+		);
 
 		videos_set_videos_routes (http_cerver);
 
