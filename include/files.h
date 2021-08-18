@@ -11,4 +11,8 @@ extern void videos_uploads_filename_generator (
 	const struct _HttpRequest *request
 );
 
+extern void videos_uploads_merge_files_slow (
+	const char *video_name
+);
+
 #endif
