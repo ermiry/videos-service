@@ -3,6 +3,8 @@
 
 #include "runtime.h"
 
+#define VIDEOS_UPLOAD_PATH		"/home/videos/uploads"
+
 struct _HttpResponse;
 
 extern RuntimeType RUNTIME;
