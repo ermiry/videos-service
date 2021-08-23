@@ -132,9 +132,103 @@ static DoubleList *videos_uploads_merge_get_matching_files (
 
 }
 
-void videos_uploads_merge_files (const char *video_name) {
+static unsigned int videos_uploads_merge_files_actual (
+	int output_fd, const VideoChunk *chunk
+) {
+
+	unsigned int retval = 1;
+
+	struct stat filestats = { 0 };
+	if (!stat (chunk->complete_name, &filestats)) {
+		int input_fd = open (chunk->complete_name, O_RDONLY);
+		if (input_fd) {
+			ssize_t copied = 0;
+			unsigned int count = 0;
+
+			// copy contents of input into output
+			do {
+				copied = sendfile (
+					output_fd, input_fd, 0, VIDEO_CHUNK_COPY_BUFFER_SIZE
+				);
+
+				count += 1;
+			} while (copied > 0);
+
+			#ifdef VIDEOS_DEBUG
+			cerver_log_debug (
+				"Chunk %lu took %u copies", chunk->id, count
+			);
+			#endif
+
+			(void) close (input_fd);
+
+			retval = 0;
+		}
+
+		else {
+			cerver_log_error (
+				"Failed to open %s chunk!", chunk->complete_name
+			);
+		}
+	}
+
+	else {
+		cerver_log_error (
+			"Chunk %s was not found!", chunk->complete_name
+		);
+	}
+
+	return retval;
+
+}
+
+static void videos_uploads_merge_files_internal (
+	const char *video_name, const DoubleList *files
+) {
 
 	char filename_buffer[VIDEO_COMPLETE_FILENAME_SIZE] = { 0 };
+
+	(void) snprintf (
+		filename_buffer, VIDEO_COMPLETE_FILENAME_SIZE - 1,
+		"%s/%s",
+		VIDEOS_UPLOAD_PATH, video_name
+	);
+
+	const int output_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IRGRP | S_IROTH | S_IROTH;
+	int output_fd = open (filename_buffer, O_WRONLY | O_CREAT, output_flags);
+	if (output_fd) {
+		const VideoChunk *chunk = NULL;
+		ListElement *le = dlist_start (files);
+		unsigned int error = 0;
+		do {
+			chunk = (const VideoChunk *) le->data;
+
+			#ifdef VIDEOS_DEBUG
+			(void) printf ("%s\n", chunk->complete_name);
+			#endif
+
+			error = videos_uploads_merge_files_actual (
+				output_fd, chunk
+			);
+
+			// remove input file
+			(void) remove (chunk->complete_name);
+
+			le = le->next;
+		} while (!error && le);
+
+		(void) close (output_fd);
+	}
+
+	else {
+		cerver_log_error (
+			"Failed to create %s output!", filename_buffer
+		);
+	}
+
+}
+
+void videos_uploads_merge_files (const char *video_name) {
 
 	DoubleList *files = videos_uploads_merge_get_matching_files (
 		video_name
@@ -143,81 +237,7 @@ void videos_uploads_merge_files (const char *video_name) {
 	if (dlist_size (files)) {
 		(void) dlist_sort (files, video_chunks_comparator);
 
-		(void) snprintf (
-			filename_buffer, VIDEO_COMPLETE_FILENAME_SIZE - 1,
-			"%s/%s",
-			VIDEOS_UPLOAD_PATH, video_name
-		);
-
-		const int output_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IRGRP | S_IROTH | S_IROTH;
-		int output_fd = open (filename_buffer, O_WRONLY | O_CREAT, output_flags);
-		if (output_fd) {
-			const VideoChunk *chunk = NULL;
-			struct stat filestats = { 0 };
-			int input_fd = 0;
-			ssize_t copied = 0;
-			unsigned int idx = 0;
-			unsigned int count = 0;
-			for (ListElement *le = dlist_start (files); le; le = le->next) {
-				chunk = (const VideoChunk *) le->data;
-
-				#ifdef VIDEOS_DEBUG
-				(void) printf ("%s\n", chunk->complete_name);
-				#endif
-
-				if (!stat (chunk->complete_name, &filestats)) {
-					input_fd = open (chunk->complete_name, O_RDONLY);
-					if (input_fd) {
-						copied = 0;
-						count = 0;
-
-						// copy contents of input into output
-						do {
-							copied = sendfile (
-								output_fd, input_fd, 0, VIDEO_CHUNK_COPY_BUFFER_SIZE
-							);
-
-							if (copied < 0) {
-								perror ("Error");
-							}
-
-							count += 1;
-						} while (copied > 0);
-
-						cerver_log_debug (
-							"Chunk %u took %u copies", idx, count
-						);
-
-						(void) close (input_fd);
-					}
-
-					else {
-						cerver_log_error (
-							"Failed to open %s chunk!", chunk->complete_name
-						);
-					}
-				}
-
-				else {
-					cerver_log_error (
-						"Chunk %s was not found!", chunk->complete_name
-					);
-				}
-
-				// remove input file
-				(void) remove (chunk->complete_name);
-
-				idx += 1;
-			}
-
-			(void) close (output_fd);
-		}
-
-		else {
-			cerver_log_error (
-				"Failed to create %s output!", filename_buffer
-			);
-		}
+		videos_uploads_merge_files_internal (video_name, files);
 	}
 
 	dlist_delete (files);
