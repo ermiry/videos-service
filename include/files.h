@@ -30,4 +30,8 @@ extern void videos_uploads_merge_files_slow (
 	const char *video_name
 );
 
+extern void videos_uploads_merge_files (
+	const char *video_name
+);
+
 #endif

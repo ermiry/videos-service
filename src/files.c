@@ -132,60 +132,92 @@ static DoubleList *videos_uploads_merge_get_matching_files (
 
 }
 
-void videos_uploads_merge_files_slow (const char *video_name) {
+void videos_uploads_merge_files (const char *video_name) {
 
-	char filename_buffer[VIDEO_FILENAME_SIZE] = { 0 };
+	char filename_buffer[VIDEO_COMPLETE_FILENAME_SIZE] = { 0 };
 
 	DoubleList *files = videos_uploads_merge_get_matching_files (
 		video_name
 	);
 
 	if (dlist_size (files)) {
-		(void) dlist_sort (files, NULL);
+		(void) dlist_sort (files, video_chunks_comparator);
 
 		(void) snprintf (
-			filename_buffer, VIDEO_FILENAME_SIZE - 1,
+			filename_buffer, VIDEO_COMPLETE_FILENAME_SIZE - 1,
 			"%s/%s",
 			VIDEOS_UPLOAD_PATH, video_name
 		);
 
-		FILE *output = fopen (filename_buffer, "wb");
+		const int output_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IRGRP | S_IROTH | S_IROTH;
+		int output_fd = open (filename_buffer, O_WRONLY | O_CREAT, output_flags);
+		if (output_fd) {
+			const VideoChunk *chunk = NULL;
+			struct stat filestats = { 0 };
+			int input_fd = 0;
+			ssize_t copied = 0;
+			unsigned int idx = 0;
+			unsigned int count = 0;
+			for (ListElement *le = dlist_start (files); le; le = le->next) {
+				chunk = (const VideoChunk *) le->data;
 
-		FILE *file = NULL;
-		String *filename = NULL;
-		__off_t count = 0;
-		struct stat filestats = { 0 };
-		for (ListElement *le = dlist_start (files); le; le = le->next) {
-			filename = (String *) le->data;
+				#ifdef VIDEOS_DEBUG
+				(void) printf ("%s\n", chunk->complete_name);
+				#endif
 
-			(void) printf ("%s\n", filename->str);
+				if (!stat (chunk->complete_name, &filestats)) {
+					input_fd = open (chunk->complete_name, O_RDONLY);
+					if (input_fd) {
+						copied = 0;
+						count = 0;
 
-			file = fopen (filename->str, "rb");
-			if (file) {
-				// copy contents of file into output
-				(void) stat (filename->str, &filestats);
+						// copy contents of input into output
+						do {
+							copied = sendfile (
+								output_fd, input_fd, 0, VIDEO_CHUNK_COPY_BUFFER_SIZE
+							);
 
-				while (count < filestats.st_size) {
-					(void) fputc (fgetc (file), output);
-					count += 1;
+							if (copied < 0) {
+								perror ("Error");
+							}
+
+							count += 1;
+						} while (copied > 0);
+
+						cerver_log_debug (
+							"Chunk %u took %u copies", idx, count
+						);
+
+						(void) close (input_fd);
+					}
+
+					else {
+						cerver_log_error (
+							"Failed to open %s chunk!", chunk->complete_name
+						);
+					}
 				}
 
-				cerver_log_success ("Copied %ld bytes!", count);
+				else {
+					cerver_log_error (
+						"Chunk %s was not found!", chunk->complete_name
+					);
+				}
 
-				count = 0;
+				// remove input file
+				(void) remove (chunk->complete_name);
 
-				(void) fclose (file);
-
-				// remove file
-				// (void) remove (filename->str);
+				idx += 1;
 			}
 
-			else {
-				cerver_log_error ("Failed to open %s", filename->str);
-			}
+			(void) close (output_fd);
 		}
 
-		(void) fclose (output);
+		else {
+			cerver_log_error (
+				"Failed to create %s output!", filename_buffer
+			);
+		}
 	}
 
 	dlist_delete (files);
