@@ -30,7 +30,7 @@ void videos_upload_complete_handler (
 	// http_request_multi_parts_print (request);
 
 	// merge chunks into final file
-	videos_uploads_merge_files_slow (
+	videos_uploads_merge_files (
 		http_request_multi_parts_get_value (request, "filename")
 	);
 
