@@ -5,10 +5,9 @@
 #include <dirent.h>
 #include <unistd.h>
 
+#include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#include <cerver/types/string.h>
 
 #include <cerver/collections/dlist.h>
 
@@ -20,6 +19,66 @@
 
 #include "files.h"
 #include "videos.h"
+
+static unsigned long video_chunk_get_id (const char *filename);
+
+static VideoChunk *video_chunk_create (
+	const char *dirname, const char *filename
+) {
+
+	VideoChunk *chunk = (VideoChunk *) malloc (sizeof (VideoChunk));
+	if (chunk) {
+		chunk->id = video_chunk_get_id (filename);
+
+		(void) strncpy (chunk->name, filename, VIDEO_CHUNK_FILENAME_SIZE - 1);
+		chunk->name_len = (int) strlen (chunk->name);
+
+		chunk->complete_name_len = snprintf (
+			chunk->complete_name, VIDEO_COMPLETE_FILENAME_SIZE - 1,
+			"%s/%s",
+			dirname, filename
+		);
+	}
+
+	return chunk;
+
+}
+
+static void video_chunk_delete (void *chunk_ptr) {
+
+	if (chunk_ptr) free (chunk_ptr);
+
+}
+
+static unsigned long video_chunk_get_id (const char *filename) {
+
+	char string[VIDEO_CHUNK_FILENAME_SIZE] = { 0 };
+	(void) strncpy (string, filename, VIDEO_CHUNK_FILENAME_SIZE - 1);
+
+	static const char dlm[2] = { '-', '\0' };
+
+	char *token = NULL;
+	char *rest = string;
+
+	// we want the first value
+	token = __strtok_r (rest, dlm, &rest);
+
+	return (unsigned long) atol (token);
+
+}
+
+static int video_chunks_comparator (
+	const void *a, const void *b
+) {
+
+	const unsigned long a_chunk_id = ((VideoChunk *) a)->id;
+	const unsigned long b_chunk_id = ((VideoChunk *) b)->id;
+
+	if (a_chunk_id < b_chunk_id) return -1;
+	else if (a_chunk_id == b_chunk_id) return 0;
+	return 1;
+
+}
 
 void videos_uploads_filename_generator (
 	const HttpReceive *http_receive,
@@ -44,7 +103,7 @@ static DoubleList *videos_uploads_merge_get_matching_files (
 	const char *video_name
 ) {
 
-	DoubleList *matches = dlist_init (str_delete, str_comparator);
+	DoubleList *matches = dlist_init (video_chunk_delete, video_chunks_comparator);
 
 	DIR *dp = opendir (VIDEOS_UPLOAD_PATH);
 	if (dp) {
@@ -54,7 +113,7 @@ static DoubleList *videos_uploads_merge_get_matching_files (
 				if (strstr (ep->d_name, video_name)) {
 					(void) dlist_insert_after (
 						matches, dlist_end (matches),
-						str_create ("%s/%s", VIDEOS_UPLOAD_PATH, ep->d_name)
+						video_chunk_create (VIDEOS_UPLOAD_PATH, ep->d_name)
 					);
 				}
 			}
