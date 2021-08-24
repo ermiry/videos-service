@@ -9,9 +9,13 @@
 #include <cerver/utils/log.h>
 #include <cerver/utils/utils.h>
 
-#include "videos.h"
+#include <cmongo/mongo.h>
+
 #include "runtime.h"
 #include "version.h"
+#include "videos.h"
+
+#include "models/video.h"
 
 #include "controllers/service.h"
 
@@ -23,8 +27,12 @@ unsigned int CERVER_RECEIVE_BUFFER_SIZE = CERVER_DEFAULT_RECEIVE_BUFFER_SIZE;
 unsigned int CERVER_TH_THREADS = CERVER_DEFAULT_POOL_THREADS;
 unsigned int CERVER_CONNECTION_QUEUE = CERVER_DEFAULT_CONNECTION_QUEUE;
 
+static char MONGO_URI[MONGO_URI_SIZE] = { 0 };
+static char MONGO_APP_NAME[MONGO_APP_NAME_SIZE] = { 0 };
+static char MONGO_DB[MONGO_DB_SIZE] = { 0 };
+
 static void videos_env_get_runtime (void) {
-	
+
 	char *runtime_env = getenv ("RUNTIME");
 	if (runtime_env) {
 		RUNTIME = runtime_from_string (runtime_env);
@@ -40,7 +48,7 @@ static void videos_env_get_runtime (void) {
 }
 
 static unsigned int videos_env_get_port (void) {
-	
+
 	unsigned int retval = 1;
 
 	char *port_env = getenv ("PORT");
@@ -110,6 +118,75 @@ static void videos_env_get_cerver_connection_queue (void) {
 
 }
 
+static unsigned int videos_env_get_mongo_app_name (void) {
+
+	unsigned int retval = 1;
+
+	char *mongo_app_name_env = getenv ("MONGO_APP_NAME");
+	if (mongo_app_name_env) {
+		(void) strncpy (
+			MONGO_APP_NAME,
+			mongo_app_name_env,
+			MONGO_APP_NAME_SIZE - 1
+		);
+
+		retval = 0;
+	}
+
+	else {
+		cerver_log_error ("Failed to get MONGO_APP_NAME from env!");
+	}
+
+	return retval;
+
+}
+
+static unsigned int videos_env_get_mongo_db (void) {
+
+	unsigned int retval = 1;
+
+	char *mongo_db_env = getenv ("MONGO_DB");
+	if (mongo_db_env) {
+		(void) strncpy (
+			MONGO_DB,
+			mongo_db_env,
+			MONGO_DB_SIZE - 1
+		);
+
+		retval = 0;
+	}
+
+	else {
+		cerver_log_error ("Failed to get MONGO_DB from env!");
+	}
+
+	return retval;
+
+}
+
+static unsigned int videos_env_get_mongo_uri (void) {
+
+	unsigned int retval = 1;
+
+	char *mongo_uri_env = getenv ("MONGO_URI");
+	if (mongo_uri_env) {
+		(void) strncpy (
+			MONGO_URI,
+			mongo_uri_env,
+			MONGO_URI_SIZE - 1
+		);
+
+		retval = 0;
+	}
+
+	else {
+		cerver_log_error ("Failed to get MONGO_URI from env!");
+	}
+
+	return retval;
+
+}
+
 static unsigned int videos_init_env (void) {
 
 	unsigned int errors = 0;
@@ -124,6 +201,42 @@ static unsigned int videos_init_env (void) {
 
 	videos_env_get_cerver_connection_queue ();
 
+	errors |= videos_env_get_mongo_app_name ();
+
+	errors |= videos_env_get_mongo_db ();
+
+	errors |= videos_env_get_mongo_uri ();
+
+	return errors;
+
+}
+
+static unsigned int service_mongo_connect (void) {
+
+	unsigned int errors = 0;
+
+	bool connected_to_mongo = false;
+
+	mongo_set_uri (MONGO_URI);
+	mongo_set_app_name (MONGO_APP_NAME);
+	mongo_set_db_name (MONGO_DB);
+
+	if (!mongo_connect ()) {
+		// test mongo connection
+		if (!mongo_ping_db ()) {
+			cerver_log_success ("Connected to Mongo DB!");
+
+			errors |= videos_model_init ();
+
+			connected_to_mongo = true;
+		}
+	}
+
+	if (!connected_to_mongo) {
+		cerver_log_error ("Failed to connect to mongo!");
+		errors |= 1;
+	}
+
 	return errors;
 
 }
@@ -131,21 +244,43 @@ static unsigned int videos_init_env (void) {
 // inits videos main values
 unsigned int videos_init (void) {
 
-	unsigned int errors = 0;
+	unsigned int retval = 0;
 
 	if (!videos_init_env ()) {
-		errors |= videos_service_init ();
+		if (!service_mongo_connect ()) {
+			unsigned int errors = 0;
+
+			errors |= videos_service_init ();
+
+			retval = errors;
+		}
 	}
 
-	return errors;  
+	return retval;
+
+}
+
+static unsigned int service_mongo_end (void) {
+
+	if (mongo_get_status () == MONGO_STATUS_CONNECTED) {
+		videos_model_end ();
+
+		mongo_disconnect ();
+	}
+
+	return 0;
 
 }
 
 // ends videos main values
 unsigned int videos_end (void) {
 
+	unsigned int errors = 0;
+
+	errors |= service_mongo_end ();
+
 	videos_service_end ();
 
-	return 0;
+	return errors;
 
 }
