@@ -1,6 +1,8 @@
 #ifndef _VIDEOS_FILES_H_
 #define _VIDEOS_FILES_H_
 
+#include "controllers/upload.h"
+
 #define VIDEO_CHUNK_FILENAME_SIZE		256
 #define VIDEO_COMPLETE_FILENAME_SIZE	512
 
@@ -30,7 +32,7 @@ extern void videos_uploads_merge_files_slow (
 	const char *video_name
 );
 
-extern void videos_uploads_merge_files (
+extern VideoError videos_uploads_merge_files (
 	const char *video_name
 );
 

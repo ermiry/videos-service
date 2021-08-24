@@ -20,6 +20,8 @@
 #include "files.h"
 #include "videos.h"
 
+#include "controllers/upload.h"
+
 static unsigned long video_chunk_get_id (const char *filename);
 
 static VideoChunk *video_chunk_create (
@@ -132,11 +134,11 @@ static DoubleList *videos_uploads_merge_get_matching_files (
 
 }
 
-static unsigned int videos_uploads_merge_files_actual (
+static VideoError videos_uploads_merge_files_actual (
 	int output_fd, const VideoChunk *chunk
 ) {
 
-	unsigned int retval = 1;
+	VideoError error = VIDEO_ERROR_NONE;
 
 	struct stat filestats = { 0 };
 	if (!stat (chunk->complete_name, &filestats)) {
@@ -161,14 +163,14 @@ static unsigned int videos_uploads_merge_files_actual (
 			#endif
 
 			(void) close (input_fd);
-
-			retval = 0;
 		}
 
 		else {
 			cerver_log_error (
 				"Failed to open %s chunk!", chunk->complete_name
 			);
+
+			error = VIDEO_ERROR_BAD_CHUNK;
 		}
 	}
 
@@ -176,15 +178,19 @@ static unsigned int videos_uploads_merge_files_actual (
 		cerver_log_error (
 			"Chunk %s was not found!", chunk->complete_name
 		);
+
+		error = VIDEO_ERROR_MISSING_CHUNK;
 	}
 
-	return retval;
+	return error;
 
 }
 
-static void videos_uploads_merge_files_internal (
+static VideoError videos_uploads_merge_files_internal (
 	const char *video_name, const DoubleList *files
 ) {
+
+	VideoError error = VIDEO_ERROR_NONE;
 
 	char filename_buffer[VIDEO_COMPLETE_FILENAME_SIZE] = { 0 };
 
@@ -224,11 +230,17 @@ static void videos_uploads_merge_files_internal (
 		cerver_log_error (
 			"Failed to create %s output!", filename_buffer
 		);
+
+		error = VIDEO_ERROR_OUTPUT;
 	}
+
+	return error;
 
 }
 
-void videos_uploads_merge_files (const char *video_name) {
+VideoError videos_uploads_merge_files (const char *video_name) {
+
+	VideoError error = VIDEO_ERROR_NONE;
 
 	DoubleList *files = videos_uploads_merge_get_matching_files (
 		video_name
@@ -237,9 +249,19 @@ void videos_uploads_merge_files (const char *video_name) {
 	if (dlist_size (files)) {
 		(void) dlist_sort (files, video_chunks_comparator);
 
-		videos_uploads_merge_files_internal (video_name, files);
+		error = videos_uploads_merge_files_internal (
+			video_name, files
+		);
+	}
+
+	else {
+		cerver_log_error ("Failed to get %s matches!", video_name);
+
+		error = VIDEO_ERROR_NO_MATCHES;
 	}
 
 	dlist_delete (files);
+
+	return error;
 
 }
