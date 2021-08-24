@@ -4,6 +4,12 @@
 struct _HttpReceive;
 struct _HttpRequest;
 
+// POST /api/videos/create
+extern void videos_create_handler (
+	const struct _HttpReceive *http_receive,
+	const struct _HttpRequest *request
+);
+
 // POST /api/videos/upload
 extern void videos_upload_handler (
 	const struct _HttpReceive *http_receive,
