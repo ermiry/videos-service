@@ -8,6 +8,36 @@
 
 #include "models/video.h"
 
+#include "controllers/upload.h"
+
+const char *video_error_to_string (const VideoError type) {
+
+	switch (type) {
+		#define XX(num, name, string) case VIDEO_ERROR_##name: return #string;
+		VIDEO_ERROR_MAP(XX)
+		#undef XX
+	}
+
+	return video_error_to_string (VIDEO_ERROR_NONE);
+
+}
+
+ServiceError video_to_service_error (const VideoError type) {
+
+	ServiceError error = SERVICE_ERROR_NONE;
+
+	switch (type) {
+		case VIDEO_ERROR_NONE: break;
+
+		default:
+			error = SERVICE_ERROR_SERVER_ERROR;
+			break;
+	}
+
+	return error;
+
+}
+
 ServiceError service_video_create (const char *filename) {
 
 	ServiceError error = SERVICE_ERROR_NONE;
