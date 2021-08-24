@@ -5,6 +5,7 @@
 #include <cerver/utils/log.h>
 
 #include "errors.h"
+#include "files.h"
 
 #include "models/video.h"
 
@@ -53,7 +54,7 @@ ServiceError service_video_create (const char *filename) {
 
 			error = SERVICE_ERROR_SERVER_ERROR;
 		}
-		
+
 		video_delete (video);
 	}
 
@@ -64,5 +65,28 @@ ServiceError service_video_create (const char *filename) {
 	}
 
 	return error;
+
+}
+
+static inline VideoError service_video_complete_internal (
+	const char *filename
+) {
+
+	VideoError error = VIDEO_ERROR_NONE;
+
+	// merge chunks into final file
+	error = videos_uploads_merge_files (filename);
+
+	// TODO: handle any other error
+
+	return error;
+
+}
+
+ServiceError service_video_complete (const char *filename) {
+
+	return video_to_service_error (
+		service_video_complete_internal (filename)
+	);
 
 }

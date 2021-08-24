@@ -31,4 +31,8 @@ extern ServiceError service_video_create (
 	const char *filename
 );
 
+extern ServiceError service_video_complete (
+	const char *filename
+);
+
 #endif

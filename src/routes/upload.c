@@ -3,7 +3,6 @@
 #include <cerver/http/response.h>
 
 #include "errors.h"
-#include "files.h"
 
 #include "controllers/service.h"
 #include "controllers/upload.h"
@@ -38,7 +37,7 @@ void videos_upload_handler (
 	const HttpRequest *request
 ) {
 
-	http_request_multi_parts_print (request);
+	// http_request_multi_parts_print (request);
 
 	http_request_multi_part_keep_files ((HttpRequest *) request);
 
@@ -54,11 +53,11 @@ void videos_upload_complete_handler (
 
 	// http_request_multi_parts_print (request);
 
-	// merge chunks into final file
-	videos_uploads_merge_files (
-		http_request_multi_parts_get_value (request, "filename")
+	service_error_send_response (
+		service_video_complete (
+			http_request_multi_parts_get_value (request, "filename")
+		),
+		http_receive
 	);
-
-	service_error_send_response (SERVICE_ERROR_NONE, http_receive);
 
 }
