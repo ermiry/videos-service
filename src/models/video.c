@@ -14,6 +14,10 @@
 
 #include "models/video.h"
 
+static void video_doc_parse (
+	void *video_ptr, const bson_t *video_doc
+);
+
 static CMongoModel *videos_model = NULL;
 
 unsigned int videos_model_init (void) {
@@ -22,6 +26,8 @@ unsigned int videos_model_init (void) {
 
 	videos_model = cmongo_model_create (VIDEOS_COLL_NAME);
 	if (videos_model) {
+		cmongo_model_set_parser (videos_model, video_doc_parse);
+
 		retval = 0;
 	}
 
@@ -69,6 +75,70 @@ Video *video_create (const char *filename) {
 
 }
 
+void video_generate_filename (
+	Video *video,
+	const char *base_path, const char *video_name
+) {
+
+	(void) snprintf (
+		video->filename, VIDEO_PATH_SIZE - 1,
+		"%s/%s",
+		base_path, video_name
+	);
+
+	video->filename_len = (unsigned int) strlen (video->filename);
+
+}
+
+static void video_doc_parse (
+	void *video_ptr, const bson_t *video_doc
+) {
+
+	Video *video = (Video *) video_ptr;
+
+	bson_iter_t iter = { 0 };
+	if (bson_iter_init (&iter, video_doc)) {
+		char *key = NULL;
+		bson_value_t *value = NULL;
+		while (bson_iter_next (&iter)) {
+			key = (char *) bson_iter_key (&iter);
+			value = (bson_value_t *) bson_iter_value (&iter);
+
+			if (!strcmp (key, "_id")) {
+				bson_oid_copy (&value->value.v_oid, &video->oid);
+				bson_oid_to_string (&video->oid, video->id);
+			}
+
+			else if (!strcmp (key, "name") && value->value.v_utf8.str) {
+				(void) strncpy (
+					video->name,
+					value->value.v_utf8.str,
+					VIDEO_NAME_SIZE - 1
+				);
+
+				video->name_len = (unsigned int) strlen (video->name);
+			}
+
+			else if (!strcmp (key, "filename") && value->value.v_utf8.str) {
+				(void) strncpy (
+					video->filename,
+					value->value.v_utf8.str,
+					VIDEO_PATH_SIZE - 1
+				);
+
+				video->filename_len = (unsigned int) strlen (video->filename);
+			}
+
+			else if (!strcmp (key, "duration"))
+				video->duration = value->value.v_double;
+
+			else if (!strcmp (key, "date"))
+				video->date = (time_t) bson_iter_date_time (&iter) / 1000;
+		}
+	}
+
+}
+
 static bson_t *video_to_bson (const Video *video) {
 
 	bson_t *doc = bson_new ();
@@ -89,10 +159,74 @@ static bson_t *video_to_bson (const Video *video) {
 
 }
 
+static bson_t *video_query_by_oid (const bson_oid_t *video_oid) {
+
+	bson_t *query = bson_new ();
+	if (query) {
+		(void) bson_append_oid (query, "_id", -1, video_oid);
+	}
+
+	return query;
+
+}
+
+static bson_t *video_query_by_name (const char *name) {
+
+	bson_t *query = bson_new ();
+	if (query) {
+		(void) bson_append_utf8 (query, "name", -1, name, -1);
+	}
+
+	return query;
+
+}
+
+unsigned int video_get_by_name (
+	Video *video,
+	const char *name,
+	const bson_t *query_opts
+) {
+
+	return mongo_find_one_with_opts (
+		videos_model,
+		video_query_by_name (name), query_opts,
+		video
+	);
+
+}
+
 unsigned int video_insert_one (const Video *video) {
 
 	return mongo_insert_one (
 		videos_model, video_to_bson (video)
+	);
+
+}
+
+static inline bson_t *video_update_filename_bson (
+	const char *filename
+) {
+
+	bson_t *doc = bson_new ();
+	if (doc) {
+		bson_t set_doc = BSON_INITIALIZER;
+		(void) bson_append_document_begin (doc, "$set", -1, &set_doc);
+		(void) bson_append_utf8 (&set_doc, "filename", -1, filename, -1);
+		(void) bson_append_document_end (doc, &set_doc);
+	}
+
+	return doc;
+
+}
+
+unsigned int video_update_filename (
+	const Video *video
+) {
+
+	return mongo_update_one (
+		videos_model,
+		video_query_by_oid (&video->oid),
+		video_update_filename_bson (video->filename)
 	);
 
 }

@@ -42,6 +42,21 @@ extern void video_delete (void *video_ptr);
 
 extern Video *video_create (const char *filename);
 
+extern void video_generate_filename (
+	Video *video,
+	const char *base_path, const char *video_name
+);
+
+extern unsigned int video_get_by_name (
+	Video *video,
+	const char *name,
+	const bson_t *query_opts
+);
+
 extern unsigned int video_insert_one (const Video *video);
+
+extern unsigned int video_update_filename (
+	const Video *video
+);
 
 #endif
