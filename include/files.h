@@ -33,7 +33,7 @@ extern void videos_uploads_merge_files_slow (
 );
 
 extern VideoError videos_uploads_merge_files (
-	const char *video_name
+	const char *video_name, const char *filename
 );
 
 #endif

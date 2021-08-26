@@ -187,21 +187,14 @@ static VideoError videos_uploads_merge_files_actual (
 }
 
 static VideoError videos_uploads_merge_files_internal (
-	const char *video_name, const DoubleList *files
+	const char *video_name, const DoubleList *files,
+	const char *output_filename
 ) {
 
 	VideoError error = VIDEO_ERROR_NONE;
 
-	char filename_buffer[VIDEO_COMPLETE_FILENAME_SIZE] = { 0 };
-
-	(void) snprintf (
-		filename_buffer, VIDEO_COMPLETE_FILENAME_SIZE - 1,
-		"%s/%s",
-		VIDEOS_UPLOAD_PATH, video_name
-	);
-
 	const int output_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IRGRP | S_IROTH | S_IROTH;
-	int output_fd = open (filename_buffer, O_WRONLY | O_CREAT, output_flags);
+	int output_fd = open (output_filename, O_WRONLY | O_CREAT, output_flags);
 	if (output_fd) {
 		const VideoChunk *chunk = NULL;
 		ListElement *le = dlist_start (files);
@@ -228,7 +221,7 @@ static VideoError videos_uploads_merge_files_internal (
 
 	else {
 		cerver_log_error (
-			"Failed to create %s output!", filename_buffer
+			"Failed to create %s output!", output_filename
 		);
 
 		error = VIDEO_ERROR_OUTPUT;
@@ -238,7 +231,9 @@ static VideoError videos_uploads_merge_files_internal (
 
 }
 
-VideoError videos_uploads_merge_files (const char *video_name) {
+VideoError videos_uploads_merge_files (
+	const char *video_name, const char *filename
+) {
 
 	VideoError error = VIDEO_ERROR_NONE;
 
@@ -250,7 +245,7 @@ VideoError videos_uploads_merge_files (const char *video_name) {
 		(void) dlist_sort (files, video_chunks_comparator);
 
 		error = videos_uploads_merge_files_internal (
-			video_name, files
+			video_name, files, filename
 		);
 	}
 
