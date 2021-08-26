@@ -27,6 +27,8 @@ extern ServiceError video_to_service_error (
 	const VideoError type
 );
 
+extern Video *service_video_get_by_name (const char *name);
+
 extern ServiceError service_video_create (
 	const char *filename
 );

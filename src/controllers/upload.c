@@ -6,6 +6,7 @@
 
 #include "errors.h"
 #include "files.h"
+#include "videos.h"
 
 #include "models/video.h"
 
@@ -39,6 +40,20 @@ ServiceError video_to_service_error (const VideoError type) {
 
 }
 
+Video *service_video_get_by_name (const char *name) {
+
+	Video *video = video_new ();
+	if (video) {
+		if (video_get_by_name (video, name, NULL)) {
+			video_delete (video);
+			video = NULL;
+		}
+	}
+
+	return video;
+
+}
+
 ServiceError service_video_create (const char *filename) {
 
 	ServiceError error = SERVICE_ERROR_NONE;
@@ -69,24 +84,58 @@ ServiceError service_video_create (const char *filename) {
 }
 
 static inline VideoError service_video_complete_internal (
-	const char *filename
+	const Video *video
 ) {
 
 	VideoError error = VIDEO_ERROR_NONE;
 
-	// merge chunks into final file
-	error = videos_uploads_merge_files (filename);
+	error = videos_uploads_merge_files (
+		video->name, video->filename
+	);
 
-	// TODO: handle any other error
+	switch (error) {
+		case VIDEO_ERROR_NONE: {
+			video_update_filename (video);
+		} break;
+
+		// TODO: generate an error
+		default: break;
+	}
 
 	return error;
 
 }
 
-ServiceError service_video_complete (const char *filename) {
+ServiceError service_video_complete (const char *video_name) {
 
-	return video_to_service_error (
-		service_video_complete_internal (filename)
-	);
+	ServiceError error = SERVICE_ERROR_NONE;
+
+	Video *video = video_new ();
+	if (video) {
+		if (!video_get_by_name (video, video_name, NULL)) {
+			// generate video filename
+			video_generate_filename (
+				video,
+				VIDEOS_UPLOAD_PATH, video->name
+			);
+
+			// merge chunks into final file
+			error = video_to_service_error (
+				service_video_complete_internal (video)
+			);
+
+			video_delete (video);
+		}
+
+		else {
+			error = SERVICE_ERROR_NOT_FOUND;
+		}
+	}
+
+	else {
+		error = SERVICE_ERROR_SERVER_ERROR;
+	}
+
+	return error;
 
 }
