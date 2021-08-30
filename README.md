@@ -30,7 +30,7 @@ sudo docker run \
   -e CERVER_CONNECTION_QUEUE=4 \
   -e MONGO_APP_NAME=upload -e MONGO_DB=videos \
   -e MONGO_URI=mongodb://upload:password@mongo:27017/videos \
-  ermiry/videos-service:development /bin/bash
+  ermiry/videos-service:test /bin/bash
 ```
 
 ## Routes
