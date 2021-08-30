@@ -147,14 +147,20 @@ static VideoError videos_uploads_merge_files_actual (
 			ssize_t copied = 0;
 			unsigned int count = 0;
 
+			size_t to_copy = filestats.st_size;
+
 			// copy contents of input into output
 			do {
 				copied = sendfile (
 					output_fd, input_fd, 0, VIDEO_CHUNK_COPY_BUFFER_SIZE
 				);
 
-				count += 1;
-			} while (copied > 0);
+				if (copied > 0) {
+					to_copy -= (size_t) copied;
+
+					count += 1;
+				}
+			} while ((copied > 0) && to_copy);
 
 			#ifdef VIDEOS_DEBUG
 			cerver_log_debug (
