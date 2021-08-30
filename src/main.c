@@ -53,6 +53,11 @@ static void videos_set_videos_routes (HttpCerver *http_cerver) {
 	HttpRoute *version_route = http_route_create (REQUEST_METHOD_GET, "version", videos_version_handler);
 	http_route_child_add (main_route, version_route);
 
+	// POST /api/videos/create
+	HttpRoute *create_route = http_route_create (REQUEST_METHOD_POST, "create", videos_create_handler);
+	http_route_set_modifier (create_route, HTTP_ROUTE_MODIFIER_MULTI_PART);
+	http_route_child_add (main_route, create_route);
+
 	// POST /api/videos/upload
 	HttpRoute *upload_route = http_route_create (REQUEST_METHOD_POST, "upload", videos_upload_handler);
 	http_route_set_modifier (upload_route, HTTP_ROUTE_MODIFIER_MULTI_PART);
