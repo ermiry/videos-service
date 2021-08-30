@@ -3,6 +3,8 @@
 
 #include "errors.h"
 
+#include "models/video.h"
+
 #define VIDEO_ERROR_MAP(XX)							\
 	XX(0,	NONE, 				None)				\
 	XX(1,	NO_MATCHES, 		No matches)			\
